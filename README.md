@@ -33,7 +33,7 @@
 [![Java](https://img.shields.io/badge/Java-17-orange?logo=java)](https://www.oracle.com/java/)  
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.1.4-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)  
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-blue?logo=mysql)](https://www.mysql.com/)  
-[![License](https://img.shields.io/badge/license-MIT-lightgrey)](LICENSE) 
+
 ---
 
 ## 📂 프로젝트 구조
@@ -46,3 +46,4 @@ medchatbot-main/
 ├── static/              # 프론트엔드 HTML, CSS, JS
 ├── pom.xml              # Maven 설정
 └── README.md
+
