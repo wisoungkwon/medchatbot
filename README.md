@@ -27,13 +27,16 @@
 | **Frontend** | HTML, CSS, JavaScript |
 | **Backend** | Spring Boot (Java) |
 | **Database** | MySQL |
-| **AI/LLM** | OpenAI / SKT-AI 기반 LLM 모델 |
+| **AI/LLM** | OpenAI / SKT-AI 기반 LLM 모델, Python 3.10+ |
 | **버전 관리** | Git, GitHub |
 
 [![Java](https://img.shields.io/badge/Java-17-orange?logo=java)](https://www.oracle.com/java/)  
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.1.4-brightgreen?logo=springboot)](https://spring.io/projects/spring-boot)  
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-blue?logo=mysql)](https://www.mysql.com/)  
-
+![Python](https://img.shields.io/badge/Python-3.10-blue?logo=python&logoColor=white)
+![LangChain](https://img.shields.io/badge/LangChain-v0.1.0-purple?logo=chainlink&logoColor=white)
+![FAISS](https://img.shields.io/badge/FAISS-yellowgreen?logo=facebook&logoColor=white)
+![SBERT](https://img.shields.io/badge/SBERT-KO--SBERT-lightblue?logo=semanticweb&logoColor=black)
 ---
 
 ## 📂 프로젝트 구조
@@ -46,4 +49,5 @@ medchatbot-main/
 ├── static/              # 프론트엔드 HTML, CSS, JS
 ├── pom.xml              # Maven 설정
 └── README.md
+
 
