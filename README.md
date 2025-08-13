@@ -37,6 +37,7 @@
 ![LangChain](https://img.shields.io/badge/LangChain-v0.1.0-purple?logo=chainlink&logoColor=white)
 ![FAISS](https://img.shields.io/badge/FAISS-yellowgreen?logo=facebook&logoColor=white)
 ![SBERT](https://img.shields.io/badge/SBERT-KO--SBERT-lightblue?logo=semanticweb&logoColor=black)
+
 ---
 
 ## 📂 프로젝트 구조
@@ -49,5 +50,3 @@ medchatbot-main/
 ├── static/              # 프론트엔드 HTML, CSS, JS
 ├── pom.xml              # Maven 설정
 └── README.md
-
-
