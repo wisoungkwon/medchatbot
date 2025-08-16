@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <title>메디컬 챗봇</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="stylesheet"
 	href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 <link rel="stylesheet" href="/css/chatbot.css" />
 </head>
 <body>
 	<header>
-		<button id="menuToggle" class="hamburger-btn">☰</button>
+		<button id="menuToggle" class="hamburger-btn" aria-label="메뉴 열기">☰</button>
 		<span style="margin-right: 12px;">💬 메디컬 챗봇</span>
 		<div class="header-right">
 			<div class="font-btn-group">
@@ -20,30 +21,26 @@
 		</div>
 	</header>
 
-	<!-- 🔎 환자 조회 바 -->
-	<div class="lookup-bar">
-		<input type="text" id="patientIdInput" placeholder="회원 아이디를 입력하세요" />
-		<button id="patientLookupBtn">조회</button>
-		<button id="panelToggleBtn" class="lookup-btn"
-			style="background: #6b7280">접기</button>
-	</div>
-
 	<!-- 사이드 메뉴 -->
-	<nav id="sideMenu" class="side-menu">
+	<nav id="sideMenu" class="side-menu" aria-label="사이드 메뉴">
 		<div class="menu-header">메뉴</div>
 		<ul>
 			<li><a href="#" id="loginBtn">로그인</a></li>
 			<li><a href="#" id="signupBtn">회원가입</a></li>
-			<li><a href="#" id="profileBtn">프로필</a></li>
-			<li><a href="#" id="settingsBtn">설정</a></li>
+			<li><a href="#" id="logoutBtn" style="display: none;">로그아웃</a></li>
 		</ul>
 	</nav>
-	<div id="menuOverlay" class="menu-overlay"></div>
+	<div id="menuOverlay" class="menu-overlay" aria-hidden="true"></div>
 
 	<!-- 👤 환자 기본정보 -->
 	<section id="profileSection" class="profile-card"
 		style="display: none;">
-		<h3 style="margin: 4px 0 12px;">환자 기본 정보</h3>
+		<div class="profile-header-row">
+			<h3 class="profile-title">환자 기본 정보</h3>
+			<button id="toggleHistoryBtn" class="toggle-link"
+				aria-controls="historySection" aria-expanded="false">확장</button>
+		</div>
+
 		<div class="profile-grid">
 			<div>
 				ID: <b id="patient-id"></b>
@@ -60,7 +57,7 @@
 		</div>
 	</section>
 
-	<!-- 🧾 과거 진단 기록 -->
+	<!-- 🧾 과거 진단 기록 (초기에는 숨김) -->
 	<section id="historySection" class="history-card"
 		style="display: none;">
 		<div class="history-header">
@@ -105,22 +102,63 @@
 
 	<script src="/js/chatbot.js"></script>
 
+	<!-- 로그인 모달 -->
+	<div id="loginModal" class="modal" role="dialog" aria-modal="true"
+		aria-labelledby="loginTitle">
+		<div class="modal-content">
+			<button class="close-btn" id="closeLogin" aria-label="닫기">&times;</button>
+			<h2 id="loginTitle">로그인</h2>
+			<form id="loginForm" novalidate>
+				<label for="loginId">아이디</label> <input type="text" id="loginId"
+					class="form-control" required /> <label for="loginPassword">비밀번호</label>
+				<div class="input-with-icon">
+					<input type="password" id="loginPassword" class="form-control"
+						required /> <i id="pwToggleLogin" class="pw-toggle fa fa-eye"
+						aria-label="비밀번호 표시 전환"></i>
+				</div>
+
+				<button type="submit" class="submit-btn">로그인</button>
+			</form>
+		</div>
+	</div>
+
 	<!-- 회원가입 모달 -->
-	<div id="signupModal" class="modal">
+	<div id="signupModal" class="modal" role="dialog" aria-modal="true"
+		aria-labelledby="signupTitle">
 		<div class="modal-content">
 			<button class="close-btn" id="closeSignup" aria-label="닫기">&times;</button>
-			<h2>회원가입</h2>
-			<form id="signupForm">
-				<label>아이디</label> <input type="text" id="signupId" required /> <label>나이</label>
-				<input type="number" id="signupAge" required /> <label>성별</label>
-				<div>
+			<h2 id="signupTitle">회원가입</h2>
+			<form id="signupForm" novalidate>
+				<label for="signupId">아이디</label> <input type="text" id="signupId"
+					class="form-control" required /> <label for="signupPwd">비밀번호</label>
+				<div class="input-with-icon">
+					<input type="password" id="signupPwd" class="form-control"
+						placeholder="영문, 숫자, 특수문자 포함 8~20자" minlength="8" maxlength="20"
+						required aria-describedby="pwMatchMsg" /> <i id="togglePwd"
+						class="pw-toggle fa fa-eye" aria-label="비밀번호 표시 전환"></i>
+				</div>
+
+				<label for="signupPwdConfirm">비밀번호 확인</label>
+				<div class="input-with-icon">
+					<input type="password" id="signupPwdConfirm" class="form-control"
+						placeholder="비밀번호 재입력" minlength="8" maxlength="20" required
+						aria-describedby="pwMatchMsg" /> <i id="togglePwdConfirm"
+						class="pw-toggle fa fa-eye" aria-label="비밀번호 표시 전환"></i>
+				</div>
+
+				<small id="pwMatchMsg" class="pw-msg" aria-live="polite"></small> <label
+					for="signupAge">나이</label> <input type="number" id="signupAge"
+					class="form-control" required /> <label>성별</label>
+				<div class="gender-group">
 					<label><input type="radio" name="signupGender" value="남"
 						required /> 남</label> <label><input type="radio"
 						name="signupGender" value="여" /> 여</label>
 				</div>
-				<label>기저질환</label>
-				<textarea id="signupCondition" rows="3"
+
+				<label for="signupCondition">기저질환</label>
+				<textarea id="signupCondition" class="form-control" rows="3"
 					placeholder="공란이면 자동으로 '없음' 처리됩니다."></textarea>
+
 				<button type="submit" class="submit-btn">가입하기</button>
 			</form>
 		</div>

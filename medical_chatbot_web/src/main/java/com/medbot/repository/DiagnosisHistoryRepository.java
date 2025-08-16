@@ -10,7 +10,6 @@ import java.util.List;
 
 @Repository
 public interface DiagnosisHistoryRepository extends JpaRepository<DiagnosisHistory, Integer> {
-    // 필드명과 정확히 일치해야 합니다: chatDate
     List<DiagnosisHistory> findTop5ByPatientIdOrderByChatDateDesc(String patientId);
     List<DiagnosisHistory> findByPatientIdOrderByChatDateDesc(String patientId);
     Page<DiagnosisHistory> findAllByPatientId(String patientId, Pageable pageable);
