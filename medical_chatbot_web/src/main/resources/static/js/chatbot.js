@@ -49,6 +49,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	function clearChatUI() {
 		chat.innerHTML = '<div class="message bot">안녕하세요! 증상을 입력해 주세요.</div>';
 	}
+
 	function clearHistoryUI() {
 		if (historyBody) historyBody.innerHTML = "";
 		if (historyEmpty) historyEmpty.style.display = "none";
@@ -166,13 +167,41 @@ document.addEventListener("DOMContentLoaded", function() {
 	});
 
 	/* ===== 모달 오픈/닫기 ===== */
-	signupBtn?.addEventListener("click", () => signupModal && (signupModal.style.display = "block"));
-	closeSignup?.addEventListener("click", () => signupModal && (signupModal.style.display = "none"));
-	loginBtn?.addEventListener("click", () => loginModal && (loginModal.style.display = "block"));
-	closeLogin?.addEventListener("click", () => loginModal && (loginModal.style.display = "none"));
+	signupBtn?.addEventListener("click", () => {
+		if (signupModal) {
+			resetSignupForm?.();                 // ← 회원가입 폼도 항상 초기화
+			signupModal.style.display = "block";
+		}
+	});
+	closeSignup?.addEventListener("click", () => {
+		if (signupModal) {
+			signupModal.style.display = "none";
+			resetSignupForm?.();                 // (선택) 닫을 때도 정리
+		}
+	});
+
+	loginBtn?.addEventListener("click", () => {
+		if (loginModal) {
+			resetLoginForm?.();                  // ← 로그인 폼 초기화 후 열기
+			loginModal.style.display = "block";
+		}
+	});
+	closeLogin?.addEventListener("click", () => {
+		if (loginModal) {
+			loginModal.style.display = "none";
+			resetLoginForm?.();                  // (선택) 닫을 때도 정리
+		}
+	});
+
 	window.addEventListener("click", (e) => {
-		if (e.target === signupModal) signupModal.style.display = "none";
-		if (e.target === loginModal) loginModal.style.display = "none";
+		if (e.target === signupModal) {
+			signupModal.style.display = "none";
+			resetSignupForm?.();
+		}
+		if (e.target === loginModal) {
+			loginModal.style.display = "none";
+			resetLoginForm?.();
+		}
 	});
 
 	/* ===== 비밀번호 표시/숨김 ===== */
@@ -229,10 +258,76 @@ document.addEventListener("DOMContentLoaded", function() {
 			const txt = await res.text();
 			if (!res.ok) throw new Error(txt || "회원가입 실패");
 			alert(txt || "회원가입이 완료되었습니다!");
+			resetSignupForm();
 			signupModal.style.display = "none";
 			// 필요 시 자동 로그인:
 			// const loggedId = await doLogin(id, pwd); await loadMyProfile(loggedId);
 		} catch (err) { alert(err.message || "오류가 발생했습니다."); }
+	});
+
+	// === 회원가입 폼 초기화 ===
+	function resetSignupForm() {
+		if (!signupForm) return;
+
+		// 1) 브라우저가 기억한 값 포함 전체 리셋
+		signupForm.reset();
+
+		// 2) 입력값 수동 초기화(혹시 모를 자동완성/커스텀 상태 대비)
+		byId("signupId") && (byId("signupId").value = "");
+		byId("signupPwd") && (byId("signupPwd").value = "");
+		byId("signupPwdConfirm") && (byId("signupPwdConfirm").value = "");
+		byId("signupAge") && (byId("signupAge").value = "");
+		byId("signupCondition") && (byId("signupCondition").value = "");
+
+		// 3) 성별 라디오 해제
+		document.querySelectorAll("input[name='signupGender']").forEach(el => { el.checked = false; });
+
+		// 4) 비밀번호 표시/숨김 아이콘 상태 초기화
+		const pwd = byId("signupPwd");
+		const pwd2 = byId("signupPwdConfirm");
+		const icon1 = byId("togglePwd");
+		const icon2 = byId("togglePwdConfirm");
+		if (pwd) pwd.type = "password";
+		if (pwd2) pwd2.type = "password";
+		[icon1, icon2].forEach(icon => {
+			if (icon && icon.classList.contains("fa")) {
+				icon.classList.add("fa-eye");
+				icon.classList.remove("fa-eye-slash");
+			}
+		});
+
+		// 5) 비번 일치/정책 메시지 숨김
+		const pwMsg = byId("pwMatchMsg");
+		if (pwMsg) {
+			pwMsg.textContent = "";
+			pwMsg.style.display = "none";
+			pwMsg.classList.remove("ok", "bad");
+		}
+
+		// 6) 아이디 입력에 포커스
+		byId("signupId")?.focus();
+	}
+
+	/* ===== 모달 오픈/닫기 ===== */
+	signupBtn?.addEventListener("click", () => {
+		if (signupModal) {
+			resetSignupForm();                 // ← 열기 전 항상 초기화
+			signupModal.style.display = "block";
+		}
+	});
+
+	closeSignup?.addEventListener("click", () => {
+		if (signupModal) {
+			signupModal.style.display = "none";
+			resetSignupForm();                 // ← 닫을 때도 정리(선택사항)
+		}
+	});
+
+	window.addEventListener("click", (e) => {
+		if (e.target === signupModal) {
+			signupModal.style.display = "none";
+			resetSignupForm();                 // ← 바깥 클릭으로 닫을 때도 정리(선택사항)
+		}
 	});
 
 	/* ===== 로그인/로그아웃 ===== */
@@ -243,12 +338,14 @@ document.addEventListener("DOMContentLoaded", function() {
 		});
 		const text = await res.text();
 		if (!res.ok) throw new Error(text || "로그인 실패");
+		resetLoginForm?.();
 		loginModal.style.display = "none";
 		loginBtn.style.display = "none";
 		signupBtn.style.display = "none";
 		logoutBtn.style.display = "list-item";
 		return id;
 	}
+
 	loginForm?.addEventListener("submit", async (e) => {
 		e.preventDefault();
 		const id = byId("loginId")?.value?.trim();
@@ -261,7 +358,26 @@ document.addEventListener("DOMContentLoaded", function() {
 			// clearChatUI();
 		} catch (err) { alert(err.message || "로그인 실패"); }
 	});
+	// === 로그인 폼 초기화 ===
+	function resetLoginForm() {
+		if (!loginForm) return;
 
+		// 기본 리셋
+		loginForm.reset();
+
+		// 수동 초기화(자동완성/커스텀 상태 대비)
+		byId("loginId") && (byId("loginId").value = "");
+		const lpw = byId("loginPassword");
+		const icon = byId("pwToggleLogin");
+		if (lpw) lpw.type = "password";
+		if (icon && icon.classList.contains("fa")) {
+			icon.classList.add("fa-eye");
+			icon.classList.remove("fa-eye-slash");
+		}
+
+		// 포커스
+		byId("loginId")?.focus();
+	}
 	logoutBtn?.addEventListener("click", async () => {
 		try {
 			const res = await fetch("/patient/logout", { method: "POST", credentials: "include" });
@@ -315,6 +431,7 @@ document.addEventListener("DOMContentLoaded", function() {
 		chat.scrollTop = chat.scrollHeight;
 		return msg;
 	}
+
 	function formatSectionHtml(text) {
 		const lines = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
 		if (lines.some((l) => /^[-•]/.test(l))) {
@@ -322,6 +439,7 @@ document.addEventListener("DOMContentLoaded", function() {
 		}
 		return `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
 	}
+
 	async function showBotAnswer(answer) {
 		const sections = String(answer).split(/\n\s*(?=\d+\.\s)/g).filter(Boolean);
 		if (sections.length === 0) { addMessage(answer, "bot"); return; }
@@ -488,6 +606,88 @@ document.addEventListener("DOMContentLoaded", function() {
 			menuOverlay?.classList.remove("show");
 		});
 	});
+
+	/* ===== 음성 입력 → 자동 전송 ===== */
+	(function setupAutoSTT() {
+		const micBtn = document.querySelector(".mic-btn");
+		const input = document.getElementById("userInput");
+		const sendBtn = document.getElementById("sendBtn");
+		if (!micBtn || !input || !sendBtn) return;
+
+		const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+		// 브라우저 미지원 처리
+		if (!SR) {
+			micBtn.addEventListener("click", () => {
+				alert("이 브라우저는 음성 인식을 지원하지 않습니다.\nChrome에서 HTTPS(또는 localhost)로 접속해 주세요.");
+			});
+			return;
+		}
+
+		const recognition = new SR();
+		recognition.lang = "ko-KR";
+		recognition.interimResults = true;   // 중간 결과도 받음
+		recognition.continuous = false;      // 한 번 말하고 종료
+
+		let recognizing = false;
+		let baseValue = "";        // 시작 시 input의 기존 값
+		let finalTranscript = "";  // 최종 텍스트 누적
+
+		function setBusy(busy) {
+			recognizing = busy;
+			micBtn.classList.toggle("recording", busy);
+			micBtn.disabled = busy;                 // 중복 클릭 방지
+			micBtn.setAttribute("aria-label", busy ? "음성 입력 중지" : "음성 입력 시작");
+			if (busy) input.placeholder = "듣는 중...";
+			else input.placeholder = "메시지를 입력하세요.";
+		}
+
+		micBtn.addEventListener("click", () => {
+			if (recognizing) {
+				recognition.stop(); // (이론상 호출 안옴) 안전 장치
+				return;
+			}
+			try {
+				baseValue = input.value ? input.value.trim() + " " : "";
+				finalTranscript = "";
+				recognition.start();
+			} catch (e) {
+				console.warn("recognition.start() 실패:", e);
+			}
+		});
+
+		recognition.onstart = () => setBusy(true);
+
+		recognition.onerror = (e) => {
+			console.warn("STT error:", e.error || e);
+		};
+
+		recognition.onresult = (e) => {
+			let interim = "";
+			for (let i = e.resultIndex; i < e.results.length; i++) {
+				const r = e.results[i];
+				if (r.isFinal) finalTranscript += r[0].transcript;
+				else interim += r[0].transcript;
+			}
+			// 실시간으로 입력창에 반영
+			input.value = (baseValue + finalTranscript + interim).trimStart();
+			input.focus();
+			input.setSelectionRange(input.value.length, input.value.length);
+		};
+
+		recognition.onend = () => {
+			setBusy(false);
+			// 최종 텍스트로 확정
+			input.value = (baseValue + finalTranscript).trim();
+
+			// ✅ 자동 전송(엔터)
+			if (input.value) {
+				// sendMessage()가 Enter 키/버튼 클릭에 바인딩 되어 있으므로 버튼 클릭으로 트리거
+				sendBtn.click();
+			}
+		};
+	})();
+
 
 	/* ===== 글씨 크기/다크모드 ===== */
 	let currentFontSize = 17; const minFontSize = 13, maxFontSize = 32;
