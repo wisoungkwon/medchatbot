@@ -11,4 +11,10 @@ public class HomeController {
         // templates/home.html 파일을 찾아 렌더링
         return "home";
     }
+    
+    @GetMapping("/chatbot")
+    public String chatbot() {
+    	// templates/chatbot.html 로 연결
+    	return "chatbot"; 
+    }
 }
