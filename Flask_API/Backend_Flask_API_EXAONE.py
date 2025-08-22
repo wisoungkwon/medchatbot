@@ -11,6 +11,7 @@ medical_server.py
 import os, json, re
 from typing import List, Tuple
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # CORS 임포트
 
 # LangChain, OpenAI 등 라이브러리 임포트
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -136,6 +137,44 @@ def extract_numbered_block(answer: str) -> str:
     else:
         keep = items
     return "\n".join(keep).strip()
+
+
+def extract_diagnosis_parts(answer: str) -> dict:
+    """
+    LLM의 답변을 항목별로 분리하여 딕셔너리로 반환.
+    `extract_numbered_block`을 확장한 버전.
+    """
+    out = {
+        "predictedDiagnosis": "",
+        "diagnosisDefinition": "",
+        "recommendedDepartment": "",
+        "preventionManagement": "",
+        "additionalInfo": "",
+        "medicine": "",  # ✅ 추가: 상비약 추천을 위한 새로운 필드
+        "rawResponse": answer,
+    }
+
+    blocks = re.split(r"\n\s*(?=\d+\.\s)", answer.strip())
+
+    for block in blocks:
+        lines = block.strip().split("\n", 1)
+        title = lines[0].strip().replace(":", "").replace("：", "")
+        body = lines[1].strip() if len(lines) > 1 else ""
+
+        if "예상되는 병명" in title or "예측 병명" in title:
+            out["predictedDiagnosis"] = body
+        elif "주요 원인" in title:
+            out["diagnosisDefinition"] = body
+        elif "추천 진료과" in title:
+            out["recommendedDepartment"] = body
+        elif "예방 및 관리 방법" in title:
+            out["preventionManagement"] = body
+        elif "생활 시 주의사항" in title:
+            out["additionalInfo"] = body
+        elif "상비약 추천" in title:
+            out["medicine"] = body  # ✅ 수정: additionalInfo 대신 medicine에 저장
+
+    return out
 
 
 # ------------------------------------------------------------
@@ -269,7 +308,8 @@ SYSTEM_PROMPT = """
 """.strip()
 
 app = Flask(__name__)
-# 전역 변수로 벡터 DB 초기화 (서버 시작 시 한 번만 실행)
+CORS(app)  # 모든 경로에 대해 CORS 허용
+
 try:
     disease_db = build_or_load_unified_disease_db()
     print("✅ 통합 인덱스 준비 완료")
@@ -285,12 +325,20 @@ def ask_symptoms():
 
     data = request.get_json()
     user_input = data.get("symptom")
+    additional_symptoms = data.get("additional_symptoms", "")
     if not user_input:
         return jsonify({"error": "symptom 필드가 요청 본문에 필요합니다."}), 400
 
-    # 1) 검색 수행
+    # ✅ 수정: combined_input을 검색에 사용하도록 수정
+    combined_input = (
+        f"{user_input}\n추가 정보: {additional_symptoms}"
+        if additional_symptoms
+        else user_input
+    )
+
+    # 1) 검색 수행 (combined_input 사용)
     docs_with_scores = search_unified_db_with_scores(
-        disease_db, user_input, k=K_DISEASE
+        disease_db, combined_input, k=K_DISEASE
     )
 
     # 2) 검색 실패 시 일반 응답 라우팅
@@ -301,7 +349,7 @@ def ask_symptoms():
                 "role": "system",
                 "content": "당신은 사용자에게 친절하게 답변하는 AI 어시스턴트입니다.",
             },
-            {"role": "user", "content": user_input},
+            {"role": "user", "content": combined_input},
         ]
         try:
             answer = chat_with_friendli(general_messages)
@@ -315,7 +363,6 @@ def ask_symptoms():
 
     # 4) 상위 1개 유사도 점수로 라우팅 판단
     top1_doc, top1_score = unique_docs[0]
-    final_docs = []
 
     # (A) 비의료/잡담 라우팅
     if top1_score < LOW_CONF_THRESHOLD:
@@ -325,7 +372,7 @@ def ask_symptoms():
                 "role": "system",
                 "content": "당신은 사용자에게 친절하게 답변하는 AI 어시스턴트입니다.",
             },
-            {"role": "user", "content": user_input},
+            {"role": "user", "content": combined_input},
         ]
         try:
             answer = chat_with_friendli(general_messages)
@@ -339,17 +386,20 @@ def ask_symptoms():
         or (unique_docs[0][1] - unique_docs[2][1]) >= SCORE_DIFF_THRESHOLD
     )
 
-    if is_confident:
-        print(f"[판단] 확신도 높음 (유사도: {top1_score:.2f})")
-        final_docs = [doc for doc, score in unique_docs[:MAX_DISEASES]]
-        final_user_input = user_input
-    else:
-        # (C) 확신도 낮음 -> 추가 증상 요청 (API에서는 추가 입력 루프를 제거하고 초기 검색 결과로 바로 진행)
-        print(
-            f"[판단] 확신도 낮음 (유사도: {top1_score:.2f}). 초기 검색 결과로 답변을 생성합니다."
+    # ✅ 핵심 수정: 확신도가 낮고 추가 증상이 아직 없다면, 프런트엔드에 추가 질문을 요청하는 응답 반환
+    if not is_confident and not additional_symptoms:
+        print(f"[판단] 확신도 낮음 (유사도: {top1_score:.2f}). 추가 증상 요청.")
+        # 프런트엔드에 "추가 질문이 필요하다"는 상태를 보냄
+        return jsonify(
+            {
+                "status": "needs_more_info",
+                "message": "증상을 조금 더 구체적으로 알려주시겠어요? 추가적인 증상이 있다면 함께 입력해주세요.",
+            }
         )
-        final_docs = [doc for doc, score in unique_docs[:MAX_DISEASES]]
-        final_user_input = user_input
+
+    # (C) 확신도가 높거나, 추가 증상이 이미 있다면 최종 답변 생성
+    print(f"[판단] 확신도 높음 또는 추가 정보로 재검색. (유사도: {top1_score:.2f})")
+    final_docs = [doc for doc, score in unique_docs[:MAX_DISEASES]]
 
     # 5) LLM 생성
     if final_docs:
@@ -359,12 +409,13 @@ def ask_symptoms():
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"[질병 참고]\n{final_context[:CTX_CHARS]}"},
-            {"role": "user", "content": final_user_input},
+            {"role": "user", "content": combined_input},  # ✅ 수정: 합쳐진 질문 사용
         ]
         try:
             answer = chat_with_friendli(messages)
-            final_answer = extract_numbered_block(answer)
-            return jsonify({"answer": final_answer})
+            structured_answer = extract_diagnosis_parts(answer)
+            print(f"[디버그] 분리된 답변: {structured_answer}")
+            return jsonify({"answer": structured_answer})
         except Exception as e:
             return jsonify({"error": f"최종 답변 생성 실패: {e}"}), 500
 

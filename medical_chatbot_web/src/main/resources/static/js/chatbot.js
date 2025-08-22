@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", function() {
-	const API_CHAT = "http://localhost:5050/chat";   // 필요 시 서버 주소 조정
+	const API_CHAT = "http://localhost:5050/ask_symptoms";
 	const SAVE_URL = "/api/diagnosis-history";
 
 	// 채팅
@@ -13,7 +13,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	const historyBody = document.getElementById("history-table-body");
 	const historyEmpty = document.getElementById("history-empty");
 	const historyCloseBtn = document.getElementById("historyCloseBtn");
-	const toggleHistoryBtn = document.getElementById("toggleHistoryBtn"); // ← 제목 우측 '확장' 텍스트 버튼
+	const toggleHistoryBtn = document.getElementById("toggleHistoryBtn");
 
 	const elId = document.getElementById("patient-id");
 	const elAge = document.getElementById("patient-age");
@@ -33,6 +33,10 @@ document.addEventListener("DOMContentLoaded", function() {
 	const signupForm = document.getElementById("signupForm");
 
 	let currentPatientId = null;
+
+	// ✅ 새로운 상태 변수들
+	let isWaitingForMoreInfo = false;
+	let originalSymptom = "";
 
 	// ✅ 히스토리 캐시/상태
 	let cachedHistory = null;
@@ -169,27 +173,27 @@ document.addEventListener("DOMContentLoaded", function() {
 	/* ===== 모달 오픈/닫기 ===== */
 	signupBtn?.addEventListener("click", () => {
 		if (signupModal) {
-			resetSignupForm?.();                 // ← 회원가입 폼도 항상 초기화
+			resetSignupForm?.();
 			signupModal.style.display = "block";
 		}
 	});
 	closeSignup?.addEventListener("click", () => {
 		if (signupModal) {
 			signupModal.style.display = "none";
-			resetSignupForm?.();                 // (선택) 닫을 때도 정리
+			resetSignupForm?.();
 		}
 	});
 
 	loginBtn?.addEventListener("click", () => {
 		if (loginModal) {
-			resetLoginForm?.();                  // ← 로그인 폼 초기화 후 열기
+			resetLoginForm?.();
 			loginModal.style.display = "block";
 		}
 	});
 	closeLogin?.addEventListener("click", () => {
 		if (loginModal) {
 			loginModal.style.display = "none";
-			resetLoginForm?.();                  // (선택) 닫을 때도 정리
+			resetLoginForm?.();
 		}
 	});
 
@@ -311,7 +315,7 @@ document.addEventListener("DOMContentLoaded", function() {
 	/* ===== 모달 오픈/닫기 ===== */
 	signupBtn?.addEventListener("click", () => {
 		if (signupModal) {
-			resetSignupForm();                 // ← 열기 전 항상 초기화
+			resetSignupForm();
 			signupModal.style.display = "block";
 		}
 	});
@@ -319,14 +323,18 @@ document.addEventListener("DOMContentLoaded", function() {
 	closeSignup?.addEventListener("click", () => {
 		if (signupModal) {
 			signupModal.style.display = "none";
-			resetSignupForm();                 // ← 닫을 때도 정리(선택사항)
+			resetSignupForm();
 		}
 	});
 
 	window.addEventListener("click", (e) => {
 		if (e.target === signupModal) {
 			signupModal.style.display = "none";
-			resetSignupForm();                 // ← 바깥 클릭으로 닫을 때도 정리(선택사항)
+			resetSignupForm();
+		}
+		if (e.target === loginModal) {
+			loginModal.style.display = "none";
+			resetLoginForm();
 		}
 	});
 
@@ -432,61 +440,59 @@ document.addEventListener("DOMContentLoaded", function() {
 		return msg;
 	}
 
-	function formatSectionHtml(text) {
-		const lines = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
-		if (lines.some((l) => /^[-•]/.test(l))) {
-			return "<ul>" + lines.map((l) => `<li>${escapeHtml(l.replace(/^[-•]\s?/, ""))}</li>`).join("") + "</ul>";
-		}
-		return `<p>${escapeHtml(text).replace(/\n/g, "<br>")}</p>`;
-	}
-
 	async function showBotAnswer(answer) {
-		const sections = String(answer).split(/\n\s*(?=\d+\.\s)/g).filter(Boolean);
-		if (sections.length === 0) { addMessage(answer, "bot"); return; }
-		for (const sec of sections) {
-			const [title, ...rest] = sec.split(/\n/);
-			const body = rest.join("\n").trim();
-			const box = document.createElement("div");
-			box.className = "message bot section";
-			box.innerHTML = `<div class="section-title">${escapeHtml(title)}</div>${body ? formatSectionHtml(body) : ""}`;
-			chat.appendChild(box);
-			chat.scrollTop = chat.scrollHeight;
+		const msg = document.createElement("div");
+		msg.classList.add("message", "bot", "section");
+
+		if (typeof marked !== 'undefined') {
+			msg.innerHTML = marked.parse(answer);
+		} else {
+			msg.textContent = answer;
 		}
+
+		chat.appendChild(msg);
+		chat.scrollTop = chat.scrollHeight;
 	}
 
-	function extractDiagnosisParts(result) {
-		const response = (result?.response || "").trim();
-		const structured = {
-			predictedDiagnosis: (result?.predictedDiagnosis || "").trim(),
-			diagnosisDefinition: (result?.diagnosisDefinition || "").trim(),
-			recommendedDepartment: (result?.recommendedDepartment || "").trim(),
-			preventionManagement: (result?.preventionManagement || "").trim(),
-			additionalInfo: (result?.additionalInfo || "").trim(),
-		};
-		if (Object.values(structured).some((v) => v)) return structured;
-		if (!response) return structured;
+	// ✅ 새로운 상태 변수에 맞는 로직으로 수정
+	async function saveDiagnosisIfNeeded(symptomsText, chatResult) {
+		// 로그인(세션)된 사용자만 저장
+		if (!currentPatientId) return;
 
-		const blocks = String(response).split(/\n\s*(?=\d+\.\s)/g).map((b) => b.trim()).filter(Boolean).map((b) => {
-			const m = b.match(/^\s*(\d+)\.\s*([^\n:：]+)[:：]?\s*/);
-			const title = m ? m[2].trim() : "";
-			const body = m ? b.slice(m[0].length).trim() : b;
-			return { title, body };
-		});
-
-		const out = { predictedDiagnosis: "", diagnosisDefinition: "", recommendedDepartment: "", preventionManagement: "", additionalInfo: "" };
-		const put = (k, t) => { if (!t) return; out[k] = out[k] ? out[k] + (out[k].endsWith("\n") ? "" : "\n") + t : t; };
-
-		for (const { title, body } of blocks) {
-			const t = title || "";
-			if (/(예상|예측|가능|병명|감별)/i.test(t)) { put("predictedDiagnosis", body); continue; }
-			if (/(정의|개요|원인|특징|증상)/i.test(t)) { put("diagnosisDefinition", body); continue; }
-			if (/(추천\s*진료과|진료과|방문\s*진료)/i.test(t)) { put("recommendedDepartment", body); continue; }
-			if (/(예방|관리|대처|자가\s*관리|응급)/i.test(t)) { put("preventionManagement", body); continue; }
-			if (/(생활|주의|추가|경고|TIP|메모)/i.test(t)) { put("additionalInfo", body); continue; }
-			put("additionalInfo", (title ? `${title}\n` : "") + body);
+		const p = chatResult.answer;
+		if (!p) {
+			console.warn("DB 저장 실패: 답변 객체가 없습니다.");
+			return;
 		}
-		if (!Object.values(out).some((v) => v)) out.predictedDiagnosis = response;
-		return out;
+
+		const payload = {
+			patientId: currentPatientId,
+			symptoms: symptomsText,
+			predictedDiagnosis: p.predictedDiagnosis || "",
+			diagnosisDefinition: p.diagnosisDefinition || "",
+			recommendedDepartment: p.recommendedDepartment || "",
+			preventionManagement: p.preventionManagement || "",
+			additionalInfo: p.additionalInfo || "",
+			medicine: p.medicine || ""
+		};
+
+		const res = await fetch(SAVE_URL, {
+			method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
+			body: JSON.stringify(payload)
+		});
+		const text = await res.text();
+		if (!res.ok) {
+			if (res.status === 401) alert("로그인이 필요합니다.");
+			else if (res.status === 403) alert("본인 계정의 기록만 저장할 수 있습니다.");
+			console.error("SAVE_FAIL", res.status, text); return;
+		}
+		let saved = null; try { saved = JSON.parse(text); } catch { }
+		const row = saved || { ...payload, chatDate: new Date().toISOString() };
+		cachedHistory = Array.isArray(cachedHistory) ? [row, ...cachedHistory] : [row];
+		historyLoadedOnce = true;
+		if (historySection && historySection.style.display !== "none") {
+			prependHistoryRow(row);
+		}
 	}
 
 	function prependHistoryRow(r) {
@@ -499,40 +505,6 @@ document.addEventListener("DOMContentLoaded", function() {
       <td>${escapeHtml(r.recommendedDepartment || "")}</td>
       <td>${escapeHtml(r.additionalInfo || "")}</td>`;
 		historyBody.firstChild ? historyBody.insertBefore(tr, historyBody.firstChild) : historyBody.appendChild(tr);
-	}
-
-	async function saveDiagnosisIfNeeded(symptomsText, chatResult) {
-		// 로그인(세션)된 사용자만 저장
-		if (!currentPatientId) return;
-		const p = extractDiagnosisParts(chatResult);
-		const payload = {
-			patientId: currentPatientId,
-			symptoms: symptomsText,
-			predictedDiagnosis: p.predictedDiagnosis || "",
-			diagnosisDefinition: p.diagnosisDefinition || "",
-			recommendedDepartment: p.recommendedDepartment || "",
-			preventionManagement: p.preventionManagement || "",
-			additionalInfo: p.additionalInfo || "",
-		};
-		const res = await fetch(SAVE_URL, {
-			method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-			body: JSON.stringify(payload)
-		});
-		const text = await res.text();
-		if (!res.ok) {
-			if (res.status === 401) alert("로그인이 필요합니다.");
-			else if (res.status === 403) alert("본인 계정의 기록만 저장할 수 있습니다.");
-			console.error("SAVE_FAIL", res.status, text); return;
-		}
-		let saved = null; try { saved = JSON.parse(text); } catch { }
-		// 캐시에도 반영
-		const row = saved || { ...payload, chatDate: new Date().toISOString() };
-		cachedHistory = Array.isArray(cachedHistory) ? [row, ...cachedHistory] : [row];
-		historyLoadedOnce = true;
-		// 화면에 열려 있으면 즉시 반영
-		if (historySection && historySection.style.display !== "none") {
-			prependHistoryRow(row);
-		}
 	}
 
 	function sendMessage() {
@@ -551,26 +523,44 @@ document.addEventListener("DOMContentLoaded", function() {
 		loadingMsg.textContent = "답변 생성 중...";
 		chat.appendChild(loadingMsg);
 
-		// ✅ 환자 기본정보에서 age, gender, conditions만 전송
+		let requestBody = {};
+		let symptomsToSave = "";
+
+		if (isWaitingForMoreInfo) {
+			symptomsToSave = originalSymptom + " " + message;
+			requestBody.symptom = originalSymptom;
+			requestBody.additional_symptoms = message;
+			isWaitingForMoreInfo = false;
+		} else {
+			symptomsToSave = message;
+			originalSymptom = message;
+			requestBody.symptom = message;
+		}
+
 		const patient = getPatientBasicInfoForSend();
+		requestBody.patient = patient;
 
 		fetch(API_CHAT, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
-			// 서버 호환성 유지: 기존 message 필드 + 신규 symptom/patient/history 동시 전송
-			body: JSON.stringify({
-				message,                 // 기존 서버가 쓰던 필드(호환 목적)
-				symptom: message,        // 새 필드: 증상
-				patient,                 // { age, gender(m/f), conditions }
-				history: null            // 과거기록은 아직 미전송
-			})
+			body: JSON.stringify(requestBody)
 		})
 			.then((r) => r.json())
 			.then(async (data) => {
 				loadingMsg.remove();
-				if (data.response) { await showBotAnswer(data.response); }
-				else { addMessage("응답이 없습니다.", "bot"); }
-				try { await saveDiagnosisIfNeeded(message, data); } catch (e) { console.warn(e); }
+
+				if (data.status === "needs_more_info") {
+					isWaitingForMoreInfo = true;
+					addMessage(data.message, "bot");
+				}
+				else if (data.answer) {
+					await showBotAnswer(data.answer.rawResponse || data.answer.predictedDiagnosis);
+					try { await saveDiagnosisIfNeeded(symptomsToSave, data); } catch (e) { console.warn("DB 저장 실패:", e); }
+					originalSymptom = "";
+				}
+				else {
+					addMessage("응답이 없습니다.", "bot");
+				}
 			})
 			.catch((err) => {
 				loadingMsg.remove();
@@ -578,6 +568,18 @@ document.addEventListener("DOMContentLoaded", function() {
 				console.error(err);
 			});
 	}
+	/* ===== 환자 기본정보(전송용) 추출 ===== */
+	function getPatientBasicInfoForSend() {
+		const age = elAge.textContent?.trim() || null;
+		const genderText = (elGender.textContent || "").trim();
+		let gender = null;
+		if (genderText === "남자") gender = "m";
+		else if (genderText === "여자") gender = "f";
+		else if (genderText) gender = genderText;
+		const conditions = elCond.textContent?.trim() || "";
+		return { age, gender, conditions };
+	}
+
 
 	/* ===== 메뉴(햄버거) ===== */
 	const menuToggle = document.getElementById("menuToggle");
@@ -615,36 +617,32 @@ document.addEventListener("DOMContentLoaded", function() {
 		if (!micBtn || !input || !sendBtn) return;
 
 		const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-
-		// 브라우저 미지원 처리
 		if (!SR) {
 			micBtn.addEventListener("click", () => {
 				alert("이 브라우저는 음성 인식을 지원하지 않습니다.\nChrome에서 HTTPS(또는 localhost)로 접속해 주세요.");
 			});
 			return;
 		}
-
 		const recognition = new SR();
 		recognition.lang = "ko-KR";
-		recognition.interimResults = true;   // 중간 결과도 받음
-		recognition.continuous = false;      // 한 번 말하고 종료
+		recognition.interimResults = true;
+		recognition.continuous = false;
 
 		let recognizing = false;
-		let baseValue = "";        // 시작 시 input의 기존 값
-		let finalTranscript = "";  // 최종 텍스트 누적
+		let baseValue = "";
+		let finalTranscript = "";
 
 		function setBusy(busy) {
 			recognizing = busy;
 			micBtn.classList.toggle("recording", busy);
-			micBtn.disabled = busy;                 // 중복 클릭 방지
+			micBtn.disabled = busy;
 			micBtn.setAttribute("aria-label", busy ? "음성 입력 중지" : "음성 입력 시작");
 			if (busy) input.placeholder = "듣는 중...";
 			else input.placeholder = "메시지를 입력하세요.";
 		}
-
 		micBtn.addEventListener("click", () => {
 			if (recognizing) {
-				recognition.stop(); // (이론상 호출 안옴) 안전 장치
+				recognition.stop();
 				return;
 			}
 			try {
@@ -657,11 +655,7 @@ document.addEventListener("DOMContentLoaded", function() {
 		});
 
 		recognition.onstart = () => setBusy(true);
-
-		recognition.onerror = (e) => {
-			console.warn("STT error:", e.error || e);
-		};
-
+		recognition.onerror = (e) => { console.warn("STT error:", e.error || e); };
 		recognition.onresult = (e) => {
 			let interim = "";
 			for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -669,22 +663,14 @@ document.addEventListener("DOMContentLoaded", function() {
 				if (r.isFinal) finalTranscript += r[0].transcript;
 				else interim += r[0].transcript;
 			}
-			// 실시간으로 입력창에 반영
-			input.value = (baseValue + finalTranscript + interim).trimStart();
+			input.value = (baseValue + finalTranscript).trimStart();
 			input.focus();
 			input.setSelectionRange(input.value.length, input.value.length);
 		};
-
 		recognition.onend = () => {
 			setBusy(false);
-			// 최종 텍스트로 확정
 			input.value = (baseValue + finalTranscript).trim();
-
-			// ✅ 자동 전송(엔터)
-			if (input.value) {
-				// sendMessage()가 Enter 키/버튼 클릭에 바인딩 되어 있으므로 버튼 클릭으로 트리거
-				sendBtn.click();
-			}
+			if (input.value) { sendBtn.click(); }
 		};
 	})();
 
