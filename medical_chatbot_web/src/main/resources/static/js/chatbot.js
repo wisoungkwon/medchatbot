@@ -1,5 +1,6 @@
 document.addEventListener("DOMContentLoaded", function() {
-	const API_CHAT = "http://localhost:5050/ask_symptoms";
+	//const API_CHAT = "http://localhost:5050/ask_symptoms";
+	//const API_CHAT = "http://192.168.33.1:5050/ask_symptoms"; //시연장에서 사용할 핫스팟 주소
 	const SAVE_URL = "/api/diagnosis-history";
 
 	// 채팅
