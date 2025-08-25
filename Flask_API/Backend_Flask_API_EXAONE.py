@@ -329,7 +329,6 @@ def ask_symptoms():
     if not user_input:
         return jsonify({"error": "symptom 필드가 요청 본문에 필요합니다."}), 400
 
-    # ✅ 수정: combined_input을 검색에 사용하도록 수정
     combined_input = (
         f"{user_input}\n추가 정보: {additional_symptoms}"
         if additional_symptoms
@@ -353,6 +352,7 @@ def ask_symptoms():
         ]
         try:
             answer = chat_with_friendli(general_messages)
+            # ✅ 수정: 원본 답변을 바로 반환
             return jsonify({"answer": answer})
         except Exception as e:
             return jsonify({"error": f"API 호출 실패: {e}"}), 500
@@ -376,6 +376,8 @@ def ask_symptoms():
         ]
         try:
             answer = chat_with_friendli(general_messages)
+            # ✅ 수정: 원본 답변을 바로 반환
+            print(f"[디버그] 분리된 답변: {answer}")
             return jsonify({"answer": answer})
         except Exception as e:
             return jsonify({"error": f"API 호출 실패: {e}"}), 500
@@ -386,10 +388,8 @@ def ask_symptoms():
         or (unique_docs[0][1] - unique_docs[2][1]) >= SCORE_DIFF_THRESHOLD
     )
 
-    # ✅ 핵심 수정: 확신도가 낮고 추가 증상이 아직 없다면, 프런트엔드에 추가 질문을 요청하는 응답 반환
     if not is_confident and not additional_symptoms:
         print(f"[판단] 확신도 낮음 (유사도: {top1_score:.2f}). 추가 증상 요청.")
-        # 프런트엔드에 "추가 질문이 필요하다"는 상태를 보냄
         return jsonify(
             {
                 "status": "needs_more_info",
@@ -409,7 +409,7 @@ def ask_symptoms():
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"[질병 참고]\n{final_context[:CTX_CHARS]}"},
-            {"role": "user", "content": combined_input},  # ✅ 수정: 합쳐진 질문 사용
+            {"role": "user", "content": combined_input},
         ]
         try:
             answer = chat_with_friendli(messages)

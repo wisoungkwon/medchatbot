@@ -552,10 +552,12 @@ document.addEventListener("DOMContentLoaded", function() {
 
 				if (data.status === "needs_more_info") {
 					isWaitingForMoreInfo = true;
-					addMessage(data.message, "bot");
+					// ✅ 수정: addMessage 대신 showBotAnswer를 사용하여 마크다운 서식을 올바르게 표시
+					await showBotAnswer(data.message);
 				}
 				else if (data.answer) {
-					await showBotAnswer(data.answer.rawResponse || data.answer.predictedDiagnosis);
+					// ✅ 수정: 비의료 답변도 showBotAnswer로 처리하도록 통합
+					await showBotAnswer(data.answer.rawResponse || data.answer);
 					try { await saveDiagnosisIfNeeded(symptomsToSave, data); } catch (e) { console.warn("DB 저장 실패:", e); }
 					originalSymptom = "";
 				}

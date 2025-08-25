@@ -388,11 +388,11 @@ body.dark .message.bot.section {
   position: relative;
   background: #fff;
   color: #111;
-  max-width: 95%; /* ✅ 수정: 모바일에서 더 잘 보이도록 최대 너비 조정 */
-  width: auto;
-  max-height: 90vh; /* ✅ 추가: 화면 높이의 90%로 최대 높이 제한 */
-  overflow-y: auto; /* ✅ 추가: 내용이 넘치면 스크롤바 생성 */
-  margin: 5vh auto;
+  max-width: 360px; /* ✅ 수정: PC용 기본 크기 */
+  width: 92%;
+  max-height: 90vh;
+  overflow-y: auto;
+  margin: 10vh auto;
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   padding: 18px;
@@ -410,6 +410,28 @@ body.dark .message.bot.section {
 }
 .modal .modal-content label{
   display:block; width:100%; margin-top:4px; font-size:14px;
+}
+
+/* ✅ 모바일 환경에만 적용될 스타일 */
+@media screen and (max-width: 600px) {
+    .message {
+        max-width: 85%;
+        font-size: var(--msg-font-size, 16px) !important;
+    }
+    /* ✅ 수정: 모바일 전용 모달 스타일을 미디어 쿼리 안에 넣음 */
+    .modal .modal-content {
+        max-width: 95%; 
+        width: 95%;
+        margin: 5vh auto;
+    }
+    .input-container>input[type="text"] {
+        font-size: 14px;
+    }
+    .font-btn-group button, .dark-btn {
+        width: 40px;
+        height: 40px;
+        font-size: 12px;
+    }
 }
 
 /* 3) 입력 컨트롤 공통(높이 통일) */
