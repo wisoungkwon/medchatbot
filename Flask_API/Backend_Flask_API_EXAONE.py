@@ -88,7 +88,9 @@ def chat_with_friendli(messages, **gen_opts) -> str:
     completion = llm_client.chat.completions.create(
         model=FRIENDLI_MODEL,
         messages=messages,
-        temperature=gen_opts.get("temperature", 0.3),
+        temperature=gen_opts.get(
+            "temperature", 0.3
+        ),  # 숫자를 늘리면 늘릴수록 창의적인 답변이 나옴.
         max_tokens=gen_opts.get("max_tokens", 1024),
     )
     return completion.choices[0].message.content.strip()
@@ -326,14 +328,47 @@ def ask_symptoms():
     data = request.get_json()
     user_input = data.get("symptom")
     additional_symptoms = data.get("additional_symptoms", "")
+
+    # ⭐ 수정: 환자 기본 정보를 파싱
+    patient_info = data.get("patient", {})
+    age = patient_info.get("age")
+    gender = patient_info.get("gender")
+    conditions = patient_info.get("conditions")
+
     if not user_input:
         return jsonify({"error": "symptom 필드가 요청 본문에 필요합니다."}), 400
 
+    # ⭐ 수정: 환자 정보를 포함하여 검색 쿼리 및 프롬프트에 활용할 문자열 생성
+    patient_prefix = ""
+    if age or gender or conditions:
+        info_parts = []
+        if age:
+            info_parts.append(f"{age}세")
+        if gender == "m":
+            info_parts.append("남자")
+        if gender == "f":
+            info_parts.append("여자")
+        if conditions and conditions != "없음":
+            info_parts.append(f"기저질환: {conditions}")
+        if info_parts:
+            patient_prefix = f"환자 정보: {' '.join(info_parts)}. "
+
     combined_input = (
-        f"{user_input}\n추가 정보: {additional_symptoms}"
+        f"{patient_prefix}{user_input}\n추가 정보: {additional_symptoms}"
         if additional_symptoms
-        else user_input
+        else f"{patient_prefix}{user_input}"
     )
+
+    # ⭐ 추가: 디버그를 위해 입력받은 증상과 환자 정보 출력
+    print("\n" + "=" * 50)
+    print("⭐ 새 요청 처리 시작")
+    print(f"  환자 정보: 나이={age}, 성별={gender}, 기저질환='{conditions}'")
+    print(
+        f"  입력된 증상: '{user_input}'"
+        + (f" + 추가 증상: '{additional_symptoms}'" if additional_symptoms else "")
+    )
+    print(f"  최종 검색 쿼리: '{combined_input}'")
+    print("-" * 50)
 
     # 1) 검색 수행 (combined_input 사용)
     docs_with_scores = search_unified_db_with_scores(
@@ -406,10 +441,13 @@ def ask_symptoms():
         final_context = "\n---\n".join(
             [doc.metadata.get("clean_text", doc.page_content) for doc in final_docs]
         )
+
+        # ⭐ 수정: 환자 정보를 LLM 프롬프트에 추가
+        llm_user_query = f"{patient_prefix}사용자 질문: {combined_input}"
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": f"[질병 참고]\n{final_context[:CTX_CHARS]}"},
-            {"role": "user", "content": combined_input},
+            {"role": "user", "content": llm_user_query},
         ]
         try:
             answer = chat_with_friendli(messages)
