@@ -389,8 +389,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
 		if (!id || !age || !genderKo || !pwd || !pwd2) return alert("필수 항목을 모두 입력해주세요.");
 		if (!passwordRegex.test(pwd)) return alert("비밀번호는 영문/숫자/특수문자 포함 8~20자");
-		if (pwd !== pxd2) return alert("비밀번호가 일치하지 않습니다."); // 🛠️ 오타? → 아래 줄로 교체
-		// if (pwd !== pwd2) return alert("비밀번호가 일치하지 않습니다.");
+		if (pwd !== pwd2) return alert("비밀번호가 일치하지 않습니다."); // 🛠️ 오타? → 아래 줄로 교체
 
 		const gender = genderKo === "남" ? "m" : "f";
 		const conditions = condRaw === "" ? "없음" : condRaw;
@@ -420,6 +419,9 @@ document.addEventListener("DOMContentLoaded", function() {
 			body: JSON.stringify({ id, password })
 		});
 		const text = await res.text();
+		
+		alert("로그인 되었습니다!");
+		
 		if (!res.ok) throw new Error(text || "로그인 실패");
 		resetLoginForm?.();
 		if (loginModal) loginModal.style.display = "none";
@@ -427,6 +429,7 @@ document.addEventListener("DOMContentLoaded", function() {
 		if (signupBtn) signupBtn.style.display = "none";
 		if (logoutBtn) logoutBtn.style.display = "list-item";
 		return id;
+		
 	}
 
 	loginForm?.addEventListener("submit", async (e) => {
@@ -456,6 +459,9 @@ document.addEventListener("DOMContentLoaded", function() {
 			clearHistoryUI();
 			clearChatUI();
 			alert("로그아웃 되었습니다.");
+			
+			location.reload(true); 
+			
 		} catch (e) {
 			alert(e.message || "로그아웃 실패");
 		}
